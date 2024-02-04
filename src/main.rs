@@ -1,7 +1,7 @@
 use crossterm::event::{poll, read, Event, KeyCode};
 use crossterm::style;
 use crossterm::{cursor, style::Print, terminal, ExecutableCommand, QueueableCommand};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
@@ -9,35 +9,54 @@ use std::time::Duration;
 // default 80 x 24 window
 // hunger as action points lmao???
 
-fn main() -> anyhow::Result<()> {
-    let mut stdout = io::stdout();
-    let size = terminal::size()?;
-    let mut display = DisplayWindow::new((80, 24 - 2));
-    stdout.init()?;
-
-    let mut tiles: HashMap<String, CustomTile> = HashMap::new();
-    let table: toml::Table = fs::read_to_string("res/tiles.toml")
+fn import_toml<T: serde::de::DeserializeOwned>(path: &str) -> IndexMap<String, T> {
+    let mut tiles: IndexMap<String, T> = IndexMap::new();
+    let table: toml::Table = std::fs::read_to_string(path)
         .unwrap()
         .parse::<toml::Table>()
         .unwrap();
     let tile_names = table.keys().collect::<Vec<_>>();
     for tile_name in tile_names.into_iter() {
-        let tile: CustomTile =
-            toml::from_str(&toml::to_string(&table[tile_name]).unwrap()).unwrap();
+        let tile: T = toml::from_str(&toml::to_string(&table[tile_name]).unwrap()).unwrap();
         tiles.insert(tile_name.clone(), tile);
     }
+    tiles
+}
 
-    // display.data[5][5] = Tile::Player;
-    display.make_box(Pos::new(3, 3), Pos::new(3, 40));
+fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        println!("{args:?}");
+        return Ok(());
+    }
 
-    let mut state = GameState::init(display, tiles);
+    let mut stdout = io::stdout();
+    let size = terminal::size()?;
+    let mut display = DisplayWindow::new((80, 24 - 2));
+
+    let tiles = import_toml::<Tile>("res/tiles.toml");
+    let entities = import_toml::<MapEntity>("res/entity.toml");
+
+    display.data[5][5] = tiles.get_index_of("brick_wall").unwrap();
+    display.data[6][5] = tiles.get_index_of("brick_wall").unwrap();
+    display.data[7][5] = tiles.get_index_of("brick_wall").unwrap();
+    for i in 5..10 {
+        for j in 5..10 {
+            display.data[i][j] = tiles.get_index_of("tile").unwrap();
+        }
+    }
+    display.data[20][5] = tiles.get_index_of("water").unwrap();
+
+    stdout.init()?;
+
+    let mut state = GameState::init(display, tiles, entities);
 
     loop {
         state.update();
         if state.quit {
             break;
         }
-        stdout.render(&state, &state.display)?;
+        stdout.render(&state)?;
     }
 
     stdout.quit()?;
@@ -45,55 +64,27 @@ fn main() -> anyhow::Result<()> {
     let mut dungeon = Quadtree::new(false);
     dungeon.expand();
 
-    for i in 0..4 {
-        if rand::random() {
-            dungeon[i].expand();
-            for j in 0..4 {
-                if rand::random() {
-                    dungeon[i][j].expand();
-                    for k in 0..4 {
-                        if rand::random() {
-                            dungeon[i][j][k].expand();
-                            for l in 0..4 {
-                                dungeon[i][j][k][l] = Quadtree::Leaf(rand::random());
-                            }
-                        } else {
-                            dungeon[i][j][k] = Quadtree::Leaf(rand::random());
-                        }
-                    }
-                } else {
-                    dungeon[i][j] = Quadtree::Leaf(rand::random());
-                }
-            }
-        } else {
-            dungeon[i] = Quadtree::Leaf(rand::random());
-        }
-    }
-
-    // println!("{dungeon:#?}");
-
-    use std::fs;
-
     println!("{size:?}");
     println!("{:#?}", state.tiles);
+    println!("{:#?}", state.entity);
     Ok(())
 }
 
 struct DisplayWindow {
     size: Pos,
-    data: Vec<Vec<Tile>>,
+    data: Vec<Vec<usize>>,
 }
 
 impl DisplayWindow {
     fn new(size: (u16, u16)) -> Self {
-        let mut rows: Vec<Vec<Tile>> = Vec::new();
+        let mut rows: Vec<Vec<usize>> = Vec::new();
         let size_p: (usize, usize) = (size.0 as usize, size.1 as usize);
         rows.reserve_exact(size_p.1);
         for _i in 0..size_p.1 {
-            let mut col: Vec<Tile> = Vec::new();
+            let mut col: Vec<usize> = Vec::new();
             col.reserve_exact(size_p.0);
             for _j in 0..size_p.0 {
-                col.push(Tile::Water);
+                col.push(0);
             }
             rows.push(col);
         }
@@ -106,24 +97,14 @@ impl DisplayWindow {
             data: rows,
         }
     }
-
-    fn make_box(&mut self, pos: Pos, size: Pos) {
-        for row in pos.row..(pos.row + size.row) {
-            self.data[row as usize][pos.col as usize] = Tile::Wall;
-            self.data[row as usize][(pos.col + size.col - 1) as usize] = Tile::Wall;
-        }
-        for col in pos.col..(pos.col + size.col) {
-            self.data[pos.row as usize][col as usize] = Tile::Wall;
-            self.data[(pos.row + size.row - 1) as usize][col as usize] = Tile::Wall;
-        }
-    }
 }
 
 trait TermOutput {
     fn init(&mut self) -> anyhow::Result<()>;
     fn quit(&mut self) -> anyhow::Result<()>;
-    fn render(&mut self, state: &GameState, display: &DisplayWindow) -> anyhow::Result<()>;
-    fn tile(&mut self, tile: &CustomTile) -> anyhow::Result<()>;
+    fn render(&mut self, state: &GameState) -> anyhow::Result<()>;
+    fn tile(&mut self, tile: &Tile) -> anyhow::Result<()>;
+    fn entity(&mut self, tile: &Tile, entity: &MapEntity) -> anyhow::Result<()>;
 }
 
 impl TermOutput for io::Stdout {
@@ -144,7 +125,7 @@ impl TermOutput for io::Stdout {
         Ok(())
     }
 
-    fn render(&mut self, state: &GameState, display: &DisplayWindow) -> anyhow::Result<()> {
+    fn render(&mut self, state: &GameState) -> anyhow::Result<()> {
         self.queue(cursor::MoveTo(0, 0))?;
 
         self.queue(style::SetForegroundColor(style::Color::DarkRed))?;
@@ -177,18 +158,14 @@ impl TermOutput for io::Stdout {
         self.queue(style::SetForegroundColor(style::Color::Reset))?;
 
         self.queue(cursor::MoveTo(0, 2))?;
-        for i in 0..display.data.len() {
-            for j in 0..display.data[i].len() {
-                let tile = tile_to_char(display.data[i][j]);
-                // self.queue(style::SetBackgroundColor(tile.2))?;
-                // self.queue(style::SetForegroundColor(tile.1))?;
-                // if i as i16 == state.position.row && j as i16 == state.position.col {
-                //     self.queue(style::SetForegroundColor(style::Color::Reset))?;
-                //     self.queue(style::Print('@'))?;
-                // } else {
-                //     self.queue(style::Print(tile.0))?;
-                // }
-                self.tile(state.tiles.get("grass").unwrap());
+        for i in 0..state.display.data.len() {
+            for j in 0..state.display.data[i].len() {
+                let tile = state.display.data[i][j];
+                if i == (state.position.row as usize) && j == (state.position.col as usize) {
+                    self.entity(&state.tiles[tile], state.entity.get("player").unwrap())?;
+                } else {
+                    self.tile(&state.tiles[tile])?;
+                }
             }
             self.queue(style::Print("\n\r"))?;
         }
@@ -198,7 +175,7 @@ impl TermOutput for io::Stdout {
         Ok(())
     }
 
-    fn tile(&mut self, tile: &CustomTile) -> anyhow::Result<()> {
+    fn tile(&mut self, tile: &Tile) -> anyhow::Result<()> {
         self.queue(style::SetBackgroundColor(style::Color::AnsiValue(
             tile.back,
         )))?;
@@ -208,6 +185,23 @@ impl TermOutput for io::Stdout {
         self.queue(style::Print(tile.char))?;
         Ok(())
     }
+
+    fn entity(&mut self, tile: &Tile, entity: &MapEntity) -> anyhow::Result<()> {
+        self.queue(style::SetBackgroundColor(style::Color::AnsiValue(
+            tile.back,
+        )))?;
+        self.queue(style::SetForegroundColor(style::Color::AnsiValue(
+            entity.fore,
+        )))?;
+        self.queue(style::Print(entity.char))?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MapEntity {
+    r#char: char,
+    fore: u8,
 }
 
 enum Item {
@@ -221,14 +215,19 @@ struct GameState {
     position: Pos,
     display: DisplayWindow,
     number: String,
-    tiles: HashMap<String, CustomTile>,
+    pub tiles: IndexMap<String, Tile>,
+    entity: IndexMap<String, MapEntity>,
 }
 
 // attack types: stab, slash, smash
 // STAB, SLSH, SMSH
 
 impl GameState {
-    fn init(display: DisplayWindow, tiles: HashMap<String, CustomTile>) -> Self {
+    fn init(
+        display: DisplayWindow,
+        tiles: IndexMap<String, Tile>,
+        entity: IndexMap<String, MapEntity>,
+    ) -> Self {
         Self {
             health: 160,
             hunger: 160,
@@ -237,6 +236,7 @@ impl GameState {
             display,
             number: "".to_string(),
             tiles,
+            entity,
         }
     }
 
@@ -281,8 +281,9 @@ impl GameState {
                 || new_row < 0
                 || new_row > self.display.size.col - 1
                 || new_col < 0
-                || new_col > self.display.size.row - 1 // TODO: fix this
-                || !Self::valid(self.display.data[new_row as usize][new_col as usize])
+                || new_col > self.display.size.row - 1
+                || !self.tiles[self.display.data[new_row as usize][new_col as usize]].r#move
+            // TODO: fix this
             {
                 break;
             }
@@ -300,14 +301,6 @@ impl GameState {
         self.number = "".to_string();
         result
     }
-
-    fn valid(tile: Tile) -> bool {
-        match tile {
-            Tile::Wall => false,
-            Tile::Empty => true,
-            _ => true,
-        }
-    }
 }
 
 struct Pos {
@@ -318,19 +311,6 @@ struct Pos {
 impl Pos {
     fn new(row: i16, col: i16) -> Self {
         Self { row, col }
-    }
-}
-
-fn tile_to_char(tile: Tile) -> (char, style::Color, style::Color) {
-    use style::Color::*;
-
-    match tile {
-        Tile::Empty => (' ', Reset, Reset),
-        Tile::Wall => (BLOCK_FULL, Reset, Grey),
-        Tile::Grass => (',', Rgb { r: 0, g: 150, b: 0 }, Rgb { r: 0, g: 100, b: 0 }),
-        Tile::Water => ('~', Rgb { r: 0, g: 0, b: 150 }, Rgb { r: 0, g: 0, b: 100 }),
-        Tile::Floor => (' ', Reset, Reset),
-        Tile::Player => ('@', Reset, Reset),
     }
 }
 
@@ -350,18 +330,8 @@ enum Input {
     Number(char),
 }
 
-#[derive(Copy, Clone, Debug)]
-enum Tile {
-    Empty,
-    Wall,
-    Grass,
-    Floor,
-    Player,
-    Water,
-}
-
 #[derive(Debug, serde::Deserialize)]
-struct CustomTile {
+struct Tile {
     r#char: char,
     fore: u8,
     back: u8,

@@ -1,11 +1,35 @@
+[aaa]
+char = " "
+fore = 0
+back = 0
+move = true
+
+[void]
+char = " "
+fore = 0
+back = 0
+move = true
+
 [grass]
 char = "\""
 fore = 28
 back = 22
 move = true
 
-[wall]
-char = " "
-fore = 0
+[brick_wall]
+char = "▞"
+fore = 242
 back = 244
+move = false
+
+[tile]
+char = "╋"
+fore = 239
+back = 238
+move = true
+
+[water]
+char = "~"
+fore = 20
+back = 18
 move = false
