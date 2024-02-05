@@ -60,6 +60,11 @@ fn main() -> anyhow::Result<()> {
     stdout.init()?;
 
     let mut state = GameState::init(level, tiles, entities);
+    let things: Vec<String> = vec![
+        "cheesesjdashjkldhaklsjdhajklshdklashdkajls".to_string(),
+        "fire".to_string(),
+    ];
+    state.ui_menu((Pos::new(1, 1), Pos::new(20, 30)), &things[..], true);
 
     loop {
         state.update();
@@ -170,15 +175,23 @@ impl TermOutput for io::Stdout {
         self.queue(style::SetForegroundColor(style::Color::Reset))?;
 
         self.queue(cursor::MoveTo(0, 2))?;
-        for i in start.row..end.row {
-            for j in start.col..end.col {
-                if i < 0 || j < 0 || state.level.size.row <= i || state.level.size.col <= j {
+        for (display_i, level_i) in (start.row..end.row).enumerate() {
+            for (display_j, level_j) in (start.col..end.col).enumerate() {
+                if let Some(char) = state.ui[display_i][display_j] {
+                    self.queue(style::SetForegroundColor(style::Color::Reset))?;
+                    self.queue(style::SetBackgroundColor(style::Color::Reset))?;
+                    self.queue(style::Print(char))?;
+                } else if level_i < 0
+                    || level_j < 0
+                    || state.level.size.row <= level_i
+                    || state.level.size.col <= level_j
+                {
                     self.queue(style::SetForegroundColor(style::Color::Reset))?;
                     self.queue(style::SetBackgroundColor(style::Color::Reset))?;
                     self.queue(style::Print(" "))?;
                 } else {
-                    let tile = state.level.data[i as usize][j as usize];
-                    if i == state.position.row && j == state.position.col {
+                    let tile = state.level.data[level_i as usize][level_j as usize];
+                    if level_i == state.position.row && level_j == state.position.col {
                         self.entity(&state.tiles[tile], state.entity.get("player").unwrap())?;
                     } else {
                         self.tile(&state.tiles[tile])?;
@@ -187,7 +200,7 @@ impl TermOutput for io::Stdout {
             }
             self.queue(style::Print("\n\r"))?;
         }
-        self.execute(style::SetBackgroundColor(style::Color::Reset))?;
+        self.queue(style::SetBackgroundColor(style::Color::Reset))?;
 
         self.flush()?;
         Ok(())
@@ -232,6 +245,7 @@ struct GameState {
     quit: bool,
     position: Pos,
     level: Level,
+    ui: Vec<Vec<Option<char>>>,
     number: String,
     pub tiles: IndexMap<String, Tile>,
     entity: IndexMap<String, MapEntity>,
@@ -246,11 +260,23 @@ impl GameState {
         tiles: IndexMap<String, Tile>,
         entity: IndexMap<String, MapEntity>,
     ) -> Self {
+        let mut rows: Vec<Vec<Option<char>>> = Vec::new();
+        rows.reserve_exact(20);
+        for _i in 0..22 {
+            let mut col: Vec<Option<char>> = Vec::new();
+            col.reserve_exact(80);
+            for _j in 0..80 {
+                col.push(None);
+            }
+            rows.push(col);
+        }
+
         Self {
             health: 160,
             hunger: 255,
             quit: false,
             position: Pos::new(5, 5),
+            ui: rows,
             level,
             number: "".to_string(),
             tiles,
@@ -318,6 +344,46 @@ impl GameState {
         };
         self.number = "".to_string();
         result
+    }
+
+    fn ui_menu(&mut self, size: (Pos, Pos), items: &[String], shrink: bool) {
+        // size.0 top left
+        // size.1 bottom right
+
+        // items
+        // let mut longest_line = 0;
+        for (i, row) in ((size.0.row as usize + 1)..(size.1.row as usize)).enumerate() {
+            let chars: Vec<char> = if i < items.len() {
+                items[i].chars().collect()
+            } else {
+                // if shrink {
+                //     break;
+                // } else {
+                Vec::new()
+                // }
+            };
+
+            for (j, col) in ((size.0.col as usize + 1)..(size.1.col as usize)).enumerate() {
+                if j < chars.len() {
+                    self.ui[row][col] = Some(chars[j]);
+                } else {
+                    self.ui[row][col] = Some(' ');
+                }
+            }
+        }
+
+        self.ui[size.0.row as usize][size.0.col as usize] = Some(LINE_DOWN_RIGHT);
+        self.ui[size.0.row as usize][size.1.col as usize] = Some(LINE_DOWN_LEFT);
+        self.ui[size.1.row as usize][size.0.col as usize] = Some(LINE_UP_RIGHT);
+        self.ui[size.1.row as usize][size.1.col as usize] = Some(LINE_UP_LEFT);
+        for col in (size.0.col + 1)..size.1.col {
+            self.ui[size.0.row as usize][col as usize] = Some(LINE_HORZ);
+            self.ui[size.1.row as usize][col as usize] = Some(LINE_HORZ);
+        }
+        for row in (size.0.row + 1)..size.1.row {
+            self.ui[row as usize][size.0.col as usize] = Some(LINE_VERT);
+            self.ui[row as usize][size.1.col as usize] = Some(LINE_VERT);
+        }
     }
 }
 
@@ -442,7 +508,17 @@ const BLOCK_MEDIUM: char = '▒';
 const BLOCK_LIGHT: char = '░';
 const BLOCK_END: char = '▏';
 
-//
+const LINE_HORZ: char = '─';
+const LINE_VERT: char = '│';
+const LINE_DOWN_RIGHT: char = '┌';
+const LINE_DOWN_LEFT: char = '┐';
+const LINE_UP_RIGHT: char = '└';
+const LINE_UP_LEFT: char = '┘';
+const LINE_CROSS: char = '┼';
+const LINE_VERT_RIGHT: char = '├';
+const LINE_HORZ_DOWN: char = '┬';
+const LINE_VERT_LEFT: char = '┤';
+const LINE_HORZ_UP: char = '┴';
 
 #[derive(Clone, Debug)]
 enum Quadtree<T: Clone> {
