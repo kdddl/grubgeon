@@ -24,6 +24,15 @@ fn import_toml<T: serde::de::DeserializeOwned>(path: &str) -> IndexMap<String, T
 }
 
 fn main() -> anyhow::Result<()> {
+    // logging
+    let log_file = std::fs::File::create("log.txt").unwrap();
+    let subscriber = tracing_subscriber::fmt()
+        .compact()
+        .with_line_number(true)
+        .with_writer(log_file)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         println!("{args:?}");
@@ -32,24 +41,25 @@ fn main() -> anyhow::Result<()> {
 
     let mut stdout = io::stdout();
     let size = terminal::size()?;
-    let mut display = DisplayWindow::new((80, 24 - 2));
+    let mut level = Level::new(Pos::new(65, 129));
 
     let tiles = import_toml::<Tile>("res/tiles.toml");
     let entities = import_toml::<MapEntity>("res/entity.toml");
 
-    display.data[5][5] = tiles.get_index_of("brick_wall").unwrap();
-    display.data[6][5] = tiles.get_index_of("brick_wall").unwrap();
-    display.data[7][5] = tiles.get_index_of("brick_wall").unwrap();
-    for i in 5..10 {
-        for j in 5..10 {
-            display.data[i][j] = tiles.get_index_of("tile").unwrap();
+    level.data[5][5] = tiles.get_index_of("brick_wall").unwrap();
+    level.data[6][5] = tiles.get_index_of("brick_wall").unwrap();
+    level.data[7][5] = tiles.get_index_of("brick_wall").unwrap();
+    println!("{:?}", level.size);
+    for i in 0..(level.size.row) {
+        for j in 0..(level.size.col) {
+            level.data[i as usize][j as usize] = tiles.get_index_of("tile").unwrap();
         }
     }
-    display.data[20][5] = tiles.get_index_of("water").unwrap();
+    level.data[20][5] = tiles.get_index_of("water").unwrap();
 
     stdout.init()?;
 
-    let mut state = GameState::init(display, tiles, entities);
+    let mut state = GameState::init(level, tiles, entities);
 
     loop {
         state.update();
@@ -70,32 +80,25 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-struct DisplayWindow {
+struct Level {
     size: Pos,
     data: Vec<Vec<usize>>,
 }
 
-impl DisplayWindow {
-    fn new(size: (u16, u16)) -> Self {
+impl Level {
+    fn new(size: Pos) -> Self {
         let mut rows: Vec<Vec<usize>> = Vec::new();
-        let size_p: (usize, usize) = (size.0 as usize, size.1 as usize);
-        rows.reserve_exact(size_p.1);
-        for _i in 0..size_p.1 {
+        rows.reserve_exact(size.row as usize);
+        for _i in 0..size.row {
             let mut col: Vec<usize> = Vec::new();
-            col.reserve_exact(size_p.0);
-            for _j in 0..size_p.0 {
+            col.reserve_exact(size.col as usize);
+            for _j in 0..size.col {
                 col.push(0);
             }
             rows.push(col);
         }
 
-        Self {
-            size: Pos {
-                row: size.0 as i16,
-                col: size.1 as i16,
-            },
-            data: rows,
-        }
+        Self { size, data: rows }
     }
 }
 
@@ -126,6 +129,16 @@ impl TermOutput for io::Stdout {
     }
 
     fn render(&mut self, state: &GameState) -> anyhow::Result<()> {
+        let start_row = state.position.row - 22 / 2;
+        let end_row = state.position.row + 22 / 2;
+        let start_col = state.position.col - 80 / 2;
+        let end_col = state.position.col + 80 / 2;
+
+        let start = Pos::new(start_row, start_col);
+        let end = Pos::new(end_row, end_col);
+
+        tracing::info!("{start:?}, {end:?}");
+
         self.queue(cursor::MoveTo(0, 0))?;
 
         self.queue(style::SetForegroundColor(style::Color::DarkRed))?;
@@ -136,35 +149,40 @@ impl TermOutput for io::Stdout {
         self.queue(style::SetForegroundColor(style::Color::Red))?;
 
         self.queue(style::Print(&format!(
-            "HUNG: {}\r\n",
-            text_bar(state.hunger, 184, false)
+            "HUNG: {} ",
+            text_bar(state.hunger / 2, 184, false)
         )))?;
 
-        self.queue(style::SetForegroundColor(style::Color::DarkRed))?;
-        self.queue(style::Print(&format!(
-            "                            NUTR: {}",
-            text_bar(40, 40, false)
-        )))?;
+        println!("\r\n{:?} {:?} {:?}", state.position, start, end);
 
-        self.queue(style::SetForegroundColor(style::Color::DarkYellow))?;
-        self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
+        // self.queue(style::SetForegroundColor(style::Color::DarkRed))?;
+        // self.queue(style::Print(&format!("NUTR: {}", text_bar(40, 40, false))))?;
 
-        self.queue(style::SetForegroundColor(style::Color::Cyan))?;
-        self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
+        // self.queue(style::SetForegroundColor(style::Color::DarkYellow))?;
+        // self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
 
-        self.queue(style::SetForegroundColor(style::Color::DarkGreen))?;
-        self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
+        // self.queue(style::SetForegroundColor(style::Color::Cyan))?;
+        // self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
+
+        // self.queue(style::SetForegroundColor(style::Color::DarkGreen))?;
+        // self.queue(style::Print(&format!("{}", text_bar(40, 40, false))))?;
 
         self.queue(style::SetForegroundColor(style::Color::Reset))?;
 
         self.queue(cursor::MoveTo(0, 2))?;
-        for i in 0..state.display.data.len() {
-            for j in 0..state.display.data[i].len() {
-                let tile = state.display.data[i][j];
-                if i == (state.position.row as usize) && j == (state.position.col as usize) {
-                    self.entity(&state.tiles[tile], state.entity.get("player").unwrap())?;
+        for i in start.row..end.row {
+            for j in start.col..end.col {
+                if i < 0 || j < 0 || state.level.size.row <= i || state.level.size.col <= j {
+                    self.queue(style::SetForegroundColor(style::Color::Reset))?;
+                    self.queue(style::SetBackgroundColor(style::Color::Reset))?;
+                    self.queue(style::Print(" "))?;
                 } else {
-                    self.tile(&state.tiles[tile])?;
+                    let tile = state.level.data[i as usize][j as usize];
+                    if i == state.position.row && j == state.position.col {
+                        self.entity(&state.tiles[tile], state.entity.get("player").unwrap())?;
+                    } else {
+                        self.tile(&state.tiles[tile])?;
+                    }
                 }
             }
             self.queue(style::Print("\n\r"))?;
@@ -213,7 +231,7 @@ struct GameState {
     hunger: u8, // action points lmao
     quit: bool,
     position: Pos,
-    display: DisplayWindow,
+    level: Level,
     number: String,
     pub tiles: IndexMap<String, Tile>,
     entity: IndexMap<String, MapEntity>,
@@ -224,16 +242,16 @@ struct GameState {
 
 impl GameState {
     fn init(
-        display: DisplayWindow,
+        level: Level,
         tiles: IndexMap<String, Tile>,
         entity: IndexMap<String, MapEntity>,
     ) -> Self {
         Self {
             health: 160,
-            hunger: 160,
+            hunger: 255,
             quit: false,
             position: Pos::new(5, 5),
-            display,
+            level,
             number: "".to_string(),
             tiles,
             entity,
@@ -279,10 +297,10 @@ impl GameState {
 
             if self.hunger == 0
                 || new_row < 0
-                || new_row > self.display.size.col - 1
+                || new_row >= self.level.size.row
                 || new_col < 0
-                || new_col > self.display.size.row - 1
-                || !self.tiles[self.display.data[new_row as usize][new_col as usize]].r#move
+                || new_col >= self.level.size.col
+                || !self.tiles[self.level.data[new_row as usize][new_col as usize]].r#move
             // TODO: fix this
             {
                 break;
@@ -303,6 +321,7 @@ impl GameState {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 struct Pos {
     row: i16,
     col: i16,
@@ -422,6 +441,8 @@ const BLOCK_DARK: char = '▓';
 const BLOCK_MEDIUM: char = '▒';
 const BLOCK_LIGHT: char = '░';
 const BLOCK_END: char = '▏';
+
+//
 
 #[derive(Clone, Debug)]
 enum Quadtree<T: Clone> {
