@@ -1,4 +1,5 @@
-use crate::renderer::{self, Display};
+use crate::renderer::Display;
+use crate::ui::Ui;
 use crate::{
     input::{GetInput, Input},
     level::Level,
@@ -17,6 +18,7 @@ pub struct GameState {
     pub level: Level,
     pub number: String,
     pub tiles: IndexMap<String, Tile>,
+    pub ui: Vec<Box<dyn Ui>>,
 }
 
 impl GameState {
@@ -40,6 +42,7 @@ impl GameState {
             level,
             number: "".to_string(),
             tiles,
+            ui: Vec::new(),
         }
     }
 
@@ -70,6 +73,42 @@ impl GameState {
             Input::Number('9') => self.number.push('9'),
             Input::Number('0') => self.number.push('0'),
             _ => {}
+        }
+
+        // put level on display
+        let diff = (self.display.size / 2).as_i16vec2();
+        let ipos = self.position.as_i16vec2();
+        let start = glam::i16vec2(ipos.x - diff.x, ipos.y - diff.y);
+        let end = glam::i16vec2(ipos.x + diff.x, ipos.y + diff.y);
+
+        for (display_i, level_i) in (start.y..end.y).enumerate() {
+            for (display_j, level_j) in (start.x..end.x).enumerate() {
+                if level_i < 0
+                    || level_j < 0
+                    || self.level.size.y as i16 <= level_i
+                    || self.level.size.x as i16 <= level_j
+                {
+                    self.display.data[display_i][display_j] = Tile::new(' ', 0, 0, false);
+                } else {
+                    let tile = self.level.data[level_i as usize][level_j as usize];
+                    let tile = self.tiles[tile];
+                    if level_i == self.position.y as i16 && level_j == self.position.x as i16 {
+                        self.display.data[display_i][display_j] = Tile {
+                            r#char: '@',
+                            fore: 15,
+                            back: tile.back,
+                            r#move: true,
+                        };
+                    } else {
+                        self.display.data[display_i][display_j] = tile;
+                    }
+                }
+            }
+        }
+
+        // put ui elements on display
+        for item in self.ui.iter() {
+            item.render_to(&mut self.display);
         }
     }
 

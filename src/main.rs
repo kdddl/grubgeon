@@ -11,9 +11,11 @@ mod level;
 mod renderer;
 mod term;
 mod tile;
+mod ui;
 mod util;
 use input::GetInput;
 use renderer::Renderer;
+use ui::Ui;
 
 // default 80 x 24 window
 // hunger as action points lmao???
@@ -54,6 +56,12 @@ fn main() -> anyhow::Result<()> {
     let mut renderer = term::Terminal::new(tiles.clone());
     let inputs = Box::new(term::Terminal::new(tiles.clone()));
     let mut state = crate::game::GameState::init(&renderer, inputs, level, tiles);
+
+    state.ui.push(ui::Menu::new(
+        glam::u16vec2(1, 1),
+        glam::u16vec2(15, 15),
+        Vec::new(),
+    ));
 
     renderer.init()?;
 

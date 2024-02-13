@@ -92,32 +92,10 @@ impl Renderer for Terminal {
             .queue(style::SetForegroundColor(style::Color::Reset))?;
 
         self.stdout.queue(cursor::MoveTo(0, 2))?;
-        for (display_i, level_i) in (start.y..end.y).enumerate() {
-            for (display_j, level_j) in (start.x..end.x).enumerate() {
-                if level_i < 0
-                    || level_j < 0
-                    || state.level.size.y as i16 <= level_i
-                    || state.level.size.x as i16 <= level_j
-                {
-                    self.stdout
-                        .queue(style::SetForegroundColor(style::Color::Reset))?;
-                    self.stdout
-                        .queue(style::SetBackgroundColor(style::Color::Reset))?;
-                    self.stdout.queue(style::Print(" "))?;
-                } else {
-                    let tile = state.level.data[level_i as usize][level_j as usize];
-                    let tile = state.tiles[tile];
-                    if level_i == state.position.y as i16 && level_j == state.position.x as i16 {
-                        self.tile(&Tile {
-                            r#char: '@',
-                            fore: 15,
-                            back: tile.back,
-                            r#move: true,
-                        })?;
-                    } else {
-                        self.tile(&tile)?;
-                    }
-                }
+        for i in 0..state.display.size.y {
+            for j in 0..state.display.size.x {
+                let tile = state.display.data[i as usize][j as usize];
+                self.tile(&tile)?;
             }
             self.stdout.queue(style::Print("\n\r"))?;
         }
