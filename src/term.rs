@@ -12,7 +12,7 @@ use std::time::Duration;
 
 pub struct Terminal {
     stdout: io::Stdout,
-    tiles: IndexMap<String, Tile>,
+    pub tiles: IndexMap<String, Tile>,
 }
 
 impl Terminal {
@@ -147,6 +147,8 @@ impl GetInput for Terminal {
                 KeyCode::Char('8') => Input::Number('8'),
                 KeyCode::Char('9') => Input::Number('9'),
                 KeyCode::Char('0') => Input::Number('0'),
+                KeyCode::Char(';') => Input::MenuPrev,
+                KeyCode::Char('\'') => Input::MenuNext,
                 _ => Input::None,
             }
         } else {

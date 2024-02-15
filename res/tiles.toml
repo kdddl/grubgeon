@@ -1,9 +1,3 @@
-[aaa]
-char = " "
-fore = 0
-back = 0
-move = true
-
 [void]
 char = " "
 fore = 0
@@ -29,7 +23,13 @@ back = 238
 move = true
 
 [water]
-char = "~"
+char = "≈"
 fore = 20
 back = 18
+move = false
+
+[campfire_lit]
+char = "x"
+fore = 94
+back = 202
 move = false

@@ -15,19 +15,23 @@ pub fn import_toml<T: serde::de::DeserializeOwned>(path: &str) -> IndexMap<Strin
 }
 
 #[derive(Clone, Debug)]
-enum Quadtree<T: Clone> {
+pub enum Quadtree<T: Clone> {
     Leaf(T),
     Stem(Box<[Quadtree<T>; 4]>),
 }
 
 impl<T: Clone> Quadtree<T> {
-    fn new(item: T) -> Self {
+    pub fn new(item: T) -> Self {
         Quadtree::Leaf(item)
     }
 
-    fn expand(&mut self) {
+    pub fn subdivide(&mut self) {
         match self {
-            Quadtree::Stem(_) => {}
+            Quadtree::Stem(array) => {
+                for item in array.iter_mut() {
+                    item.subdivide();
+                }
+            }
             Quadtree::Leaf(item) => {
                 *self = Quadtree::Stem(Box::new([
                     self.clone(),
@@ -39,10 +43,17 @@ impl<T: Clone> Quadtree<T> {
         }
     }
 
-    fn value(&self) -> Option<&T> {
+    pub fn value(&self) -> Option<&T> {
         match self {
             Quadtree::Stem(_) => None,
             Quadtree::Leaf(value) => Some(value),
+        }
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        match self {
+            Quadtree::Leaf(_) => true,
+            Quadtree::Stem(_) => false,
         }
     }
 }

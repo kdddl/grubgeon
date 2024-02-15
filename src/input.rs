@@ -12,6 +12,8 @@ pub enum Input {
     None,
     Quit,
     Number(char),
+    MenuPrev,
+    MenuNext,
 }
 
 pub trait GetInput {

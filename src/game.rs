@@ -18,7 +18,7 @@ pub struct GameState {
     pub level: Level,
     pub number: String,
     pub tiles: IndexMap<String, Tile>,
-    pub ui: Vec<Box<dyn Ui>>,
+    pub ui: Vec<crate::ui::Menu>,
 }
 
 impl GameState {
@@ -46,6 +46,10 @@ impl GameState {
         }
     }
 
+    pub fn resize(&mut self, size: glam::U16Vec2) {
+        self.display.size = size;
+    }
+
     pub fn update(&mut self) {
         if self.hunger == 0 {
             self.quit = true;
@@ -59,8 +63,8 @@ impl GameState {
             Input::Down => self.try_move(glam::i16vec2(0, 1)),
             Input::Right => self.try_move(glam::i16vec2(1, 0)),
             Input::UpLeft => self.try_move(glam::i16vec2(-1, -1)),
-            Input::UpRight => self.try_move(glam::i16vec2(-1, 1)),
-            Input::DownLeft => self.try_move(glam::i16vec2(1, -1)),
+            Input::UpRight => self.try_move(glam::i16vec2(1, -1)),
+            Input::DownLeft => self.try_move(glam::i16vec2(-1, 1)),
             Input::DownRight => self.try_move(glam::i16vec2(1, 1)),
             Input::Number('1') => self.number.push('1'),
             Input::Number('2') => self.number.push('2'),
@@ -72,6 +76,8 @@ impl GameState {
             Input::Number('8') => self.number.push('8'),
             Input::Number('9') => self.number.push('9'),
             Input::Number('0') => self.number.push('0'),
+            Input::MenuPrev => self.ui[0].prev(),
+            Input::MenuNext => self.ui[0].next(),
             _ => {}
         }
 
@@ -123,7 +129,7 @@ impl GameState {
                 || new_y >= self.level.size.y as i16
                 || new_x < 0
                 || new_x >= self.level.size.x as i16
-                || !self.tiles[self.level.data[new_y as usize][new_x as usize]].r#move
+            // !self.tiles[self.level.data[new_y as usize][new_x as usize]].r#move
             // TODO: fix this
             {
                 break;
@@ -141,44 +147,4 @@ impl GameState {
         self.number = "".to_string();
         result
     }
-
-    // fn ui_menu(&mut self, size: (Pos, Pos), items: &[String], selectable: bool) {
-    //     // size.0 top left
-    //     // size.1 bottom right
-
-    //     // items
-    //     // let mut longest_line = 0;
-    //     for (i, row) in ((size.0.row as usize + 1)..(size.1.row as usize)).enumerate() {
-    //         let chars: Vec<char> = if i < items.len() {
-    //             items[i].chars().collect()
-    //         } else {
-    //             // if shrink {
-    //             //     break;
-    //             // } else {
-    //             Vec::new()
-    //             // }
-    //         };
-
-    //         for (j, col) in ((size.0.col as usize + 1)..(size.1.col as usize)).enumerate() {
-    //             if j < chars.len() {
-    //                 self.ui[row][col] = Some(chars[j]);
-    //             } else {
-    //                 self.ui[row][col] = Some(' ');
-    //             }
-    //         }
-    //     }
-
-    //     self.ui[size.0.row as usize][size.0.col as usize] = Some(LINE_DOWN_RIGHT);
-    //     self.ui[size.0.row as usize][size.1.col as usize] = Some(LINE_DOWN_LEFT);
-    //     self.ui[size.1.row as usize][size.0.col as usize] = Some(LINE_UP_RIGHT);
-    //     self.ui[size.1.row as usize][size.1.col as usize] = Some(LINE_UP_LEFT);
-    //     for col in (size.0.col + 1)..size.1.col {
-    //         self.ui[size.0.row as usize][col as usize] = Some(LINE_HORZ);
-    //         self.ui[size.1.row as usize][col as usize] = Some(LINE_HORZ);
-    //     }
-    //     for row in (size.0.row + 1)..size.1.row {
-    //         self.ui[row as usize][size.0.col as usize] = Some(LINE_VERT);
-    //         self.ui[row as usize][size.1.col as usize] = Some(LINE_VERT);
-    //     }
-    // }
 }
