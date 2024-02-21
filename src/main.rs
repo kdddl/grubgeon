@@ -1,10 +1,7 @@
-use crossterm::event::{poll, read, Event, KeyCode};
-use crossterm::style;
-use crossterm::{cursor, style::Print, terminal, ExecutableCommand, QueueableCommand};
+use crossterm::terminal;
 use indexmap::IndexMap;
 use std::io::{self, Write};
-use std::thread;
-use std::time::Duration;
+mod editor;
 mod game;
 mod input;
 mod level;
@@ -33,14 +30,15 @@ fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).unwrap();
 
     let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 {
-        println!("{args:?}");
-        return Ok(());
-    }
 
     let mut stdout = io::stdout();
     let size = terminal::size()?;
-    let mut level = level::Level::new(glam::u16vec2(129, 65));
+    // let mut level = level::Level::new(glam::u16vec2(129, 65));
+    // let mut level = level::Level::new(glam::u16vec2(3, 3));
+    // let mut level = level::Level::new(glam::u16vec2(5, 5));
+    let mut level = level::Level::new(glam::u16vec2(9, 9));
+    // let mut level = level::Level::new(glam::u16vec2(17, 17));
+    // let mut level = level::Level::new(glam::u16vec2(33, 33));
 
     let tiles = util::import_toml::<tile::Tile>("res/tiles.toml");
 
@@ -80,11 +78,6 @@ fn main() -> anyhow::Result<()> {
 
     state.ui[0].next();
     state.ui[0].next();
-    state
-        .level
-        .generate(state.tiles.get_index_of("brick_wall").unwrap());
-
-    // *(state.ui[0].as_ref()).prev();
 
     renderer.init()?;
 
@@ -99,8 +92,13 @@ fn main() -> anyhow::Result<()> {
 
     renderer.quit()?;
 
-    println!("{size:?}");
-    println!("{:#?}", state.tiles);
+    if args.len() > 1 {
+        println!("{args:?}");
+        if args[1] == "editor" {
+            editor::export(state.name, &state.tiles, &state.level)?;
+        }
+    }
+
     Ok(())
 }
 

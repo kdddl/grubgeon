@@ -14,8 +14,18 @@ pub enum Input {
     Number(char),
     MenuPrev,
     MenuNext,
+    Select,
+    EnterText,
+}
+
+pub enum TextInput {
+    Char(char),
+    Exit,
+    Backspace,
+    None,
 }
 
 pub trait GetInput {
     fn get_input(&self) -> Input;
+    fn get_text_input(&self) -> TextInput;
 }

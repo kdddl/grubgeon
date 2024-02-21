@@ -1,4 +1,4 @@
-#[derive(Debug, serde::Deserialize, Copy, Clone)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Copy, Clone)]
 pub struct Tile {
     pub r#char: char,
     pub fore: u8,

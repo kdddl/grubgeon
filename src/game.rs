@@ -1,7 +1,7 @@
 use crate::renderer::Display;
 use crate::ui::Ui;
 use crate::{
-    input::{GetInput, Input},
+    input::{GetInput, Input, TextInput},
     level::Level,
     renderer::Renderer,
     tile::Tile,
@@ -19,6 +19,8 @@ pub struct GameState {
     pub number: String,
     pub tiles: IndexMap<String, Tile>,
     pub ui: Vec<crate::ui::Menu>,
+    pub name: String,
+    pub text_input: bool,
 }
 
 impl GameState {
@@ -38,11 +40,13 @@ impl GameState {
             health: 160,
             hunger: 255,
             quit: false,
-            position: glam::u16vec2(5, 5),
+            position: glam::u16vec2(1, 1),
             level,
             number: "".to_string(),
             tiles,
             ui: Vec::new(),
+            name: "".to_string(),
+            text_input: false,
         }
     }
 
@@ -56,29 +60,45 @@ impl GameState {
             return;
         }
 
-        match self.inputs.get_input() {
-            Input::Quit => self.quit = true,
-            Input::Left => self.try_move(glam::i16vec2(-1, 0)),
-            Input::Up => self.try_move(glam::i16vec2(0, -1)),
-            Input::Down => self.try_move(glam::i16vec2(0, 1)),
-            Input::Right => self.try_move(glam::i16vec2(1, 0)),
-            Input::UpLeft => self.try_move(glam::i16vec2(-1, -1)),
-            Input::UpRight => self.try_move(glam::i16vec2(1, -1)),
-            Input::DownLeft => self.try_move(glam::i16vec2(-1, 1)),
-            Input::DownRight => self.try_move(glam::i16vec2(1, 1)),
-            Input::Number('1') => self.number.push('1'),
-            Input::Number('2') => self.number.push('2'),
-            Input::Number('3') => self.number.push('3'),
-            Input::Number('4') => self.number.push('4'),
-            Input::Number('5') => self.number.push('5'),
-            Input::Number('6') => self.number.push('6'),
-            Input::Number('7') => self.number.push('7'),
-            Input::Number('8') => self.number.push('8'),
-            Input::Number('9') => self.number.push('9'),
-            Input::Number('0') => self.number.push('0'),
-            Input::MenuPrev => self.ui[0].prev(),
-            Input::MenuNext => self.ui[0].next(),
-            _ => {}
+        if self.text_input {
+            match self.inputs.get_text_input() {
+                TextInput::Char(c) => self.name.push(c),
+                TextInput::Backspace => {
+                    self.name.pop();
+                }
+                TextInput::Exit => self.text_input = false,
+                TextInput::None => {}
+            }
+        } else {
+            match self.inputs.get_input() {
+                Input::Quit => self.quit = true,
+                Input::Left => self.try_move(glam::i16vec2(-1, 0)),
+                Input::Up => self.try_move(glam::i16vec2(0, -1)),
+                Input::Down => self.try_move(glam::i16vec2(0, 1)),
+                Input::Right => self.try_move(glam::i16vec2(1, 0)),
+                Input::UpLeft => self.try_move(glam::i16vec2(-1, -1)),
+                Input::UpRight => self.try_move(glam::i16vec2(1, -1)),
+                Input::DownLeft => self.try_move(glam::i16vec2(-1, 1)),
+                Input::DownRight => self.try_move(glam::i16vec2(1, 1)),
+                Input::Number('1') => self.number.push('1'),
+                Input::Number('2') => self.number.push('2'),
+                Input::Number('3') => self.number.push('3'),
+                Input::Number('4') => self.number.push('4'),
+                Input::Number('5') => self.number.push('5'),
+                Input::Number('6') => self.number.push('6'),
+                Input::Number('7') => self.number.push('7'),
+                Input::Number('8') => self.number.push('8'),
+                Input::Number('9') => self.number.push('9'),
+                Input::Number('0') => self.number.push('0'),
+                Input::MenuPrev => self.ui[0].prev(),
+                Input::MenuNext => self.ui[0].next(),
+                Input::Select => {
+                    self.level.data[self.position.y as usize][self.position.x as usize] =
+                        self.ui[0].selection
+                }
+                Input::EnterText => self.text_input = true,
+                _ => {}
+            }
         }
 
         // put level on display
@@ -115,6 +135,14 @@ impl GameState {
         // put ui elements on display
         for item in self.ui.iter() {
             item.render_to(&mut self.display);
+        }
+
+        let text = Tile::from_string(&self.name, Some(15), Some(0));
+        for i in 0..self.display.size.y {
+            if i as usize == text.len() {
+                break;
+            }
+            self.display.data[0][i as usize] = text[i as usize];
         }
     }
 

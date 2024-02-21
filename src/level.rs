@@ -125,8 +125,9 @@ pub fn iter<'a, T: Clone>(tree: &'a Quadtree<T>, pos: u32, depth: u16) -> Vec<Qu
     }
 }
 
-struct RoomTile {
-    size: u8,
-    tile_hashmap: indexmap::IndexMap<String, crate::tile::Tile>,
-    data: Vec<usize>,
+#[derive(serde::Serialize, Debug, serde::Deserialize)]
+pub struct RoomTile {
+    pub size: u8,
+    pub tiles: Vec<String>,
+    pub data: Vec<Vec<usize>>,
 }

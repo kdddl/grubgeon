@@ -1,7 +1,7 @@
 use std::io;
 
 use crate::game::GameState;
-use crate::input::{GetInput, Input};
+use crate::input::{GetInput, Input, TextInput};
 use crate::renderer::Renderer;
 use crate::tile::Tile;
 use crossterm::event::{poll, read, Event, KeyCode};
@@ -149,10 +149,25 @@ impl GetInput for Terminal {
                 KeyCode::Char('0') => Input::Number('0'),
                 KeyCode::Char(';') => Input::MenuPrev,
                 KeyCode::Char('\'') => Input::MenuNext,
+                KeyCode::Char('s') => Input::Select,
+                KeyCode::Char('t') => Input::EnterText,
                 _ => Input::None,
             }
         } else {
             Input::None
+        }
+    }
+
+    fn get_text_input(&self) -> TextInput {
+        if let Some(key_code) = term_input_helper() {
+            match key_code {
+                KeyCode::Char(c) => TextInput::Char(c),
+                KeyCode::Backspace => TextInput::Backspace,
+                KeyCode::Esc => TextInput::Exit,
+                _ => TextInput::None,
+            }
+        } else {
+            TextInput::None
         }
     }
 }
